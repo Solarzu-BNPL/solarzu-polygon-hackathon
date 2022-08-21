@@ -21,6 +21,8 @@ const CheckoutPage = () => {
   const [files, setFiles] = useState([]);
   const [nftPrice,setNftPrice] = useState(0);
   const {connectWallet ,account, connected ,disconnect,contract,provider,seaport,getDetails,details,modal,setModal,setUrl,url} = useContext(solarzuContext);
+  
+  //ethPrice the exact market price of eth using coingecko api
   const ethPrice = async() => {
     const CoinGeckoClient = new CoinGecko();
     const priceOfEth = await CoinGeckoClient.simple.price({
@@ -29,6 +31,8 @@ const CheckoutPage = () => {
     });
     setPrice(priceOfEth.data.ethereum.usd);
   };
+  
+  //it convert the data to json format for uploading in IPFS.
   function makeFileObjects (data) {
     const obj = data;
     const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' })
@@ -38,6 +42,8 @@ const CheckoutPage = () => {
     ]
     return files
   }
+  
+  //storeContent function uploads the data to IPFS using Web3.storage.
   const storeContent = async (data) => {
     const web3storage_key = process.env.NEXT_PUBLIC_WEB3STORAGE_TOKEN;
     const client = new Web3Storage({ token: web3storage_key });
@@ -59,6 +65,8 @@ const CheckoutPage = () => {
       setUrl(tokenURL);
       await getDetails(tokenURL);
   }
+  
+  //This function creates a buy order for the token url in opensea.
   const createBuyOrder = async () => {
       const tokenURL = document.getElementById("tokenURL").value;
       const tokenDetails = tokenURL.split("/");
@@ -75,11 +83,15 @@ const CheckoutPage = () => {
       })
       toast("Created Buy Order Successful");
   };
+  
+  //divideInstalments function interacts with smart contract and divides the instalments.
   const divideInstalments = async (amount, instalments) => {
       const instalment_amount = Math.round(amount*(10**18) / instalments);
       const tx = await contract.divide_installments(BigNumber.from(""+amount* 10**18), instalments, BigNumber.from(""+instalment_amount));
       await tx.wait();
   }
+  
+  //function used for calculating the interest amount from total amount
   const fee_calculator = (total_amount,interest) => {
       const interest_amount = total_amount * (interest/100);
       return interest_amount;
@@ -100,10 +112,14 @@ const CheckoutPage = () => {
         if(val._hex!="0x00"){
           throw new Error("You already have Instalments");
         }
+        //getting the 10% amount from the user
         await (await provider.sendTransaction({to:solarzuAddress,value:ethers.utils.parseEther(""+fee_calculator(maticVal,10))})).wait();
-        await divideInstalments(maticVal+fee_calculator(maticVal,2.5),3);
         
+        //function for dividing into instalments
+        await divideInstalments(maticVal+fee_calculator(maticVal,2.5),3);
+        //function for placing the order in opensea
         await createBuyOrder();
+        
         const tokenURL = document.getElementById("tokenURL").value;
         const tokenDetails = tokenURL.split("/");
         let data = {};
@@ -114,6 +130,7 @@ const CheckoutPage = () => {
         data.amount = maticVal;
         data.instalments = 3;
         data.interest = 2.5;
+        //function for uploading data in IPFS
         storeContent(data);
         setModal(false)
       }
